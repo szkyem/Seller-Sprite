@@ -52,7 +52,9 @@
     .guide-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
     .guide-card { border:1px solid var(--line); padding:13px 14px; background:#fbfcfe; }
     .rule-table th { top:0; }
-    .score-table input { height:28px; padding:3px 6px; }
+    .score-table input { width:86px; height:28px; padding:3px 6px; display:inline-block; margin:0 4px; vertical-align:middle; }
+    .score-table td { line-height:2.1; }
+    .logic-note { margin:0 0 10px; font-size:13px; color:#334155; }
     .score-table .axis-a td { background:#eef6ff; }
     .score-table .axis-b td { background:#fff1f1; }
     .score-table .axis-c td { background:#f1f8e9; }
@@ -71,11 +73,11 @@
 <body>
   <header>
     <h1>Seller Sprite 商品選定ダッシュボード</h1>
-    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保管・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
+    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保存・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
     <div class="nav">
       <button id="showDashboard" class="active">ダッシュボード</button>
       <button id="showScoring">採点設定</button>
-      <button id="showSaved">商品保管</button>
+      <button id="showSaved">商品保存</button>
       <button id="showGuide">条件説明</button>
     </div>
   </header>
@@ -146,7 +148,7 @@
       </section>
 
       <section class="panel">
-        <div class="section-title"><h2>商品明細：<span id="detailLabel">上位商品</span></h2><span class="small">気になる商品を選択して商品保管へ保存</span></div>
+        <div class="section-title"><h2>商品明細：<span id="detailLabel">上位商品</span></h2><span class="small">気になる商品を選択して商品保存へ保存</span></div>
         <div style="display:flex; gap:8px; margin-bottom:10px;">
           <button id="selectAllVisible" class="secondary">全選択</button>
           <button id="clearVisible" class="secondary">選択解除</button>
@@ -166,17 +168,41 @@
         <div class="section-title"><h2>採点・減点ロジック設定</h2><span class="small">点数と条件数値は変更できます。変更後はダッシュボードへ戻ると再計算されます。</span></div>
         <div class="table-wrap">
           <table class="score-table">
-            <thead><tr><th style="width:13%;">軸</th><th style="width:16%;">配点</th><th>条件と点数</th></tr></thead>
+            <thead><tr><th style="width:18%;">項目</th><th>条件</th><th style="width:16%;">点数</th><th style="width:18%;">使う列</th></tr></thead>
             <tbody>
-              <tr class="axis-a"><td>A 市場の厚み</td><td>最大15点</td><td>販売数 <input id="thSales300" value="300"> 以上 <input id="ptSales300" value="5">点、<input id="thSales1000" value="1000"> 以上 <input id="ptSales1000" value="10">点、<input id="thSales5000" value="5000"> 以上 <input id="ptSales5000" value="15">点。売上 <input id="thRevenueLow" value="500000"> 未満なら市場点上限 <input id="capRevenueLow" value="5">点。</td></tr>
-              <tr class="axis-b"><td>B 不満シグナル</td><td>最大20点</td><td>評価数 <input id="thReviewBase" value="20"> 以上で、評価 <input id="thRating38" value="3.8"> 以下 <input id="ptRating38" value="8">点、<input id="thRating35" value="3.5"> 以下 <input id="ptRating35" value="14">点、<input id="thRating32" value="3.2"> 以下 <input id="ptRating32" value="20">点。</td></tr>
-              <tr class="axis-c"><td>C 分析可能性</td><td>最大10点</td><td>評価数 <input id="thReview20" value="20"> 以上 <input id="ptReview20" value="4">点、<input id="thReview50" value="50"> 以上 <input id="ptReview50" value="8">点。ただし <input id="thReview3001" value="3001"> 以上 <input id="thReview5000" value="5000"> 以下は <input id="ptReview3001" value="3">点。</td></tr>
-              <tr class="axis-d"><td>D 参入余地</td><td>最大15点</td><td>セラー数 <input id="thSeller2" value="2"> 以下 <input id="ptSeller2" value="8">点、<input id="thSeller3" value="3"> から <input id="thSeller5" value="5"> は <input id="ptSeller5" value="4">点。LQS <input id="thLqs5" value="5"> 未満 <input id="ptLqs5" value="7">点、<input id="thLqs75" value="7.5"> 以下 <input id="ptLqs75" value="3">点。</td></tr>
-              <tr class="axis-e"><td>E 採算</td><td>最大10点</td><td>粗利益率 <input id="thGross50" value="0.5"> 以上 <input id="ptGross50" value="4">点、<input id="thGross65" value="0.65"> 以上 <input id="ptGross65" value="7">点。価格 <input id="thPrice1500" value="1500"> 以上 <input id="ptPrice1500" value="3">点。</td></tr>
-              <tr class="axis-f"><td>F 物流適性</td><td>最大5点</td><td>小型 <input id="ptSmall" value="5">点、標準 <input id="ptStandard" value="3">点。</td></tr>
-              <tr class="axis-g"><td>G 構造改善しやすさ</td><td>最大5点</td><td>固定、折りたたみ、排水、漏れ防止などの構造改善語がある場合 <input id="ptStructureWord" value="5">点。</td></tr>
-              <tr class="penalty-row"><td>減点</td><td>各条件</td><td>レビュー要塞 <input id="pnFortress" value="20">点、コモディティ <input id="pnCommodity" value="15">点、大型 <input id="pnLarge" value="10">点、低単価 <input id="pnLowPrice" value="10">点、多バリエーション <input id="pnVariation" value="8">点、季節依存 <input id="pnSeason" value="6">点、単純代替 <input id="pnSimple" value="8">点。</td></tr>
-              <tr class="penalty-row"><td>減点判定の条件</td><td>数値条件</td><td>レビュー要塞 <input id="thFortressReviews" value="3000"> 件超。コモディティは価格 <input id="thCommodityPrice" value="1000"> 未満、セラー数 <input id="thCommoditySellers" value="5"> 以上、バリエーション <input id="thCommodityVariation" value="20"> 以上のうち2つ以上。低単価は <input id="thLowPrice" value="500"> 未満。多バリエーションは <input id="thVariationHigh" value="30"> 以上。</td></tr>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>月間販売数 <input id="thSales300" value="300"> 未満</td><td>0</td><td>月間販売数</td></tr>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>月間販売数 <input data-for="thSales300" value="300"> 〜 <input id="thSales1000" value="1000"> 未満</td><td><input id="ptSales300" value="5"></td><td>月間販売数</td></tr>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>月間販売数 <input data-for="thSales1000" value="1000"> 〜 <input id="thSales5000" value="5000"> 未満</td><td><input id="ptSales1000" value="10"></td><td>月間販売数</td></tr>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>月間販売数 <input data-for="thSales5000" value="5000"> 以上</td><td><input id="ptSales5000" value="15"></td><td>月間販売数</td></tr>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>売上 <input id="thRevenueLow" value="500000"> 円未満の場合の市場点上限</td><td><input id="capRevenueLow" value="5"></td><td>月間販売額(円)</td></tr>
+              <tr class="axis-b"><td>B 不満シグナル</td><td>評価数 <input id="thReviewBase" value="20"> 未満</td><td>0</td><td>評価数</td></tr>
+              <tr class="axis-b"><td>B 不満シグナル</td><td>評価数が基準以上、評価値 <input id="thRating38" value="3.8"> 以下</td><td><input id="ptRating38" value="8"></td><td>評価値 / 評価数</td></tr>
+              <tr class="axis-b"><td>B 不満シグナル</td><td>評価数が基準以上、評価値 <input id="thRating35" value="3.5"> 以下</td><td><input id="ptRating35" value="14"></td><td>評価値 / 評価数</td></tr>
+              <tr class="axis-b"><td>B 不満シグナル</td><td>評価数が基準以上、評価値 <input id="thRating32" value="3.2"> 以下</td><td><input id="ptRating32" value="20"></td><td>評価値 / 評価数</td></tr>
+              <tr class="axis-c"><td>C 分析可能性</td><td>評価数 <input id="thReview20" value="20"> 以上</td><td><input id="ptReview20" value="4"></td><td>評価数</td></tr>
+              <tr class="axis-c"><td>C 分析可能性</td><td>評価数 <input id="thReview50" value="50"> 以上</td><td><input id="ptReview50" value="8"></td><td>評価数</td></tr>
+              <tr class="axis-c"><td>C 分析可能性</td><td>評価数 <input id="thReview3001" value="3001"> 〜 <input id="thReview5000" value="5000"></td><td><input id="ptReview3001" value="3"></td><td>評価数</td></tr>
+              <tr class="axis-d"><td>D 参入余地</td><td>セラー数 <input id="thSeller2" value="2"> 以下</td><td><input id="ptSeller2" value="8"></td><td>セラー数</td></tr>
+              <tr class="axis-d"><td>D 参入余地</td><td>セラー数 <input id="thSeller3" value="3"> 〜 <input id="thSeller5" value="5"></td><td><input id="ptSeller5" value="4"></td><td>セラー数</td></tr>
+              <tr class="axis-d"><td>D 参入余地</td><td>LQS <input id="thLqs5" value="5"> 未満</td><td><input id="ptLqs5" value="7"></td><td>LQS</td></tr>
+              <tr class="axis-d"><td>D 参入余地</td><td>LQS <input id="thLqs75" value="7.5"> 以下</td><td><input id="ptLqs75" value="3"></td><td>LQS</td></tr>
+              <tr class="axis-e"><td>E 採算</td><td>粗利益率 <input id="thGross50" value="0.5"> 以上</td><td><input id="ptGross50" value="4"></td><td>粗利益</td></tr>
+              <tr class="axis-e"><td>E 採算</td><td>粗利益率 <input id="thGross65" value="0.65"> 以上</td><td><input id="ptGross65" value="7"></td><td>粗利益</td></tr>
+              <tr class="axis-e"><td>E 採算</td><td>価格 <input id="thPrice1500" value="1500"> 円以上</td><td><input id="ptPrice1500" value="3"></td><td>価格(円)</td></tr>
+              <tr class="axis-f"><td>F 物流適性</td><td>商品サイズ区分が小型</td><td><input id="ptSmall" value="5"></td><td>商品サイズ区分</td></tr>
+              <tr class="axis-f"><td>F 物流適性</td><td>商品サイズ区分が標準</td><td><input id="ptStandard" value="3"></td><td>商品サイズ区分</td></tr>
+              <tr class="axis-g"><td>G 構造改善しやすさ</td><td>固定、折りたたみ、排水、漏れ防止などの構造改善語がある</td><td><input id="ptStructureWord" value="5"></td><td>タイトル / カテゴリ / 概要</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>レビュー要塞</td><td><input id="pnFortress" value="20"></td><td>評価数 / Best Seller等</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>コモディティ</td><td><input id="pnCommodity" value="15"></td><td>価格 / セラー数 / バリエーション</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>大型</td><td><input id="pnLarge" value="10"></td><td>商品サイズ区分</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>低単価</td><td><input id="pnLowPrice" value="10"></td><td>価格(円)</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>多バリエーション</td><td><input id="pnVariation" value="8"></td><td>バリエーション数</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>季節依存</td><td><input id="pnSeason" value="6"></td><td>タイトル / カテゴリ / 概要</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>単純代替</td><td><input id="pnSimple" value="8"></td><td>タイトル / カテゴリ / 概要</td></tr>
+              <tr class="penalty-row"><td>減点判定の条件</td><td>レビュー要塞：評価数 <input id="thFortressReviews" value="3000"> 件超</td><td>-</td><td>評価数</td></tr>
+              <tr class="penalty-row"><td>減点判定の条件</td><td>コモディティ：価格 <input id="thCommodityPrice" value="1000"> 円未満、セラー数 <input id="thCommoditySellers" value="5"> 以上、バリエーション <input id="thCommodityVariation" value="20"> 以上のうち2つ以上</td><td>-</td><td>価格 / セラー数 / バリエーション</td></tr>
+              <tr class="penalty-row"><td>減点判定の条件</td><td>低単価：価格 <input id="thLowPrice" value="500"> 円未満</td><td>-</td><td>価格(円)</td></tr>
+              <tr class="penalty-row"><td>減点判定の条件</td><td>多バリエーション：<input id="thVariationHigh" value="30"> 以上</td><td>-</td><td>バリエーション数</td></tr>
             </tbody>
           </table>
         </div>
@@ -185,7 +211,7 @@
 
     <section id="savedPage" class="hidden">
       <section class="panel">
-        <div class="section-title"><h2>商品保管ページ</h2><span class="small">保存商品はこのブラウザのlocalStorageに保存されます。別PCには自動共有されません。</span></div>
+        <div class="section-title"><h2>商品保存ページ</h2><span class="small">保存商品はこのブラウザのlocalStorageに保存されます。別PCには自動共有されません。</span></div>
         <div class="kpis" style="margin-bottom:12px;">
           <div class="kpi"><b id="savedCount">0</b><span>保存商品数</span></div>
           <div class="kpi"><b id="savedSales">0</b><span>販売数合計</span></div>
@@ -208,13 +234,40 @@
 
     <section id="guidePage" class="hidden">
       <section class="panel">
-        <div class="section-title"><h2>条件説明</h2><span class="small">会議用の前提整理</span></div>
-        <div class="guide-grid">
-          <div class="guide-card"><h3>商品カウント単位</h3><p><b>親ASIN単位</b>はバリエーションを1商品として集約します。<b>ASIN単位</b>は各行を1商品として扱います。</p></div>
-          <div class="guide-card"><h3>LQS</h3><p>Listing Quality Scoreの略です。Seller Sprite上の商品ページ品質スコアで、低いほどページ改善余地がある可能性を見ます。</p></div>
-          <div class="guide-card"><h3>検索結果 / 全件</h3><p>左側は現在条件に一致した件数、右側は読み込んだExcelから作成した対象データ全件数です。</p></div>
-          <div class="guide-card"><h3>NG判定</h3><p>初期段階ではカテゴリ名だけで除外せず、商品名・カテゴリ・概要に根拠語がある場合にフラグ表示します。</p></div>
-        </div>
+        <div class="section-title"><h2>基本の見方</h2></div>
+        <table class="rule-table">
+          <thead><tr><th style="width:22%;">見る順番</th><th>確認すること</th></tr></thead>
+          <tbody>
+            <tr><td>1. 条件を設定</td><td>販売数・売上・評価値・評価数で「酷評だけど売れている」候補に絞ります。</td></tr>
+            <tr><td>2. 親カテゴリ集計を見る</td><td>全親カテゴリを常時表示します。条件に該当しないカテゴリは0件、1件以上あるカテゴリは薄黄色で表示します。</td></tr>
+            <tr><td>3. 親カテゴリ行をクリック</td><td>その親カテゴリに該当する商品明細だけを表示します。</td></tr>
+            <tr><td>4. 商品明細を見る</td><td>ASIN、商品名、売上、単価、評価、セラー数、販売期間を確認します。</td></tr>
+            <tr><td>5. 中身を見てNG判定</td><td>食品、医療、電気、車両保安、危険物など、根拠がある場合だけNGにします。</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="panel">
+        <div class="section-title"><h2>フィルタ条件の意味</h2><span class="small">条件を変えると即時に集計が変わります</span></div>
+        <table class="rule-table">
+          <thead><tr><th style="width:20%;">項目</th><th>意味</th><th style="width:28%;">使い方</th></tr></thead>
+          <tbody>
+            <tr><td>商品カウント単位</td><td>親ASIN単位はバリエーションを1商品として集約します。ASIN単位は各行を1商品として扱います。</td><td>バリエーション商品を1商品として見るか、各ASINで見るかを切り替えます。</td></tr>
+            <tr><td>検索結果 / 全件</td><td>左側は現在条件に一致した件数、右側は読み込んだExcelから作成した対象データ全件数です。</td><td>条件でどれだけ絞られているかを確認します。</td></tr>
+            <tr><td>親カテゴリ</td><td>Amazonの大分類です。例：ホーム＆キッチン、ペット用品、車＆バイクなど。</td><td>調査対象カテゴリを限定したい時に使います。</td></tr>
+            <tr><td>販売帯</td><td>元ファイル側で付与された売れ筋などの分類です。</td><td>売れ筋だけを見る、特定の抽出帯だけを見る時に使います。</td></tr>
+            <tr><td>月間販売数 以上</td><td>月に売れている個数の下限です。</td><td>売れていない低評価商品を除外するための条件です。</td></tr>
+            <tr><td>月間売上 以上</td><td>月間販売額の下限です。</td><td>市場規模が小さすぎる商品を除外します。</td></tr>
+            <tr><td>評価値 以下</td><td>星評価の上限です。低くするほど酷評商品に寄ります。</td><td>「酷評だけど売れている」商品を拾う中心条件です。</td></tr>
+            <tr><td>評価数 以上</td><td>レビュー件数の下限です。</td><td>レビューが少なすぎる偶然の低評価を避けます。</td></tr>
+            <tr><td>セラー数 以下</td><td>出品者数の上限です。</td><td>競合が少なそうな商品を優先するための条件です。</td></tr>
+            <tr><td>LQS 以下</td><td>Listing Quality Scoreの上限です。</td><td>商品ページ品質が弱く、改善余地がありそうな商品を拾います。</td></tr>
+            <tr><td>LQS</td><td>Listing Quality Scoreの略です。Seller Sprite上の商品ページ品質スコアです。</td><td>低いほどページ改善余地がある可能性を見ます。</td></tr>
+            <tr><td>商品サイズ</td><td>小型・標準・大型などのサイズ区分です。</td><td>初回ロットでは小型・標準を優先しやすいです。</td></tr>
+            <tr><td>ソート</td><td>表示順の基準です。</td><td>需要順、低評価順、セラー数少ない順など、会議中の見方を切り替えます。</td></tr>
+            <tr><td>表示件数</td><td>商品明細に表示する上限件数です。</td><td>画面表示が重い時は少なめにします。</td></tr>
+            <tr><td>NG判定</td><td>初期段階ではカテゴリ名だけで除外せず、商品名・カテゴリ・概要に根拠語がある場合にフラグ表示します。</td><td>商品明細で理由を確認してから、除外・要確認を判断します。</td></tr>
+          </tbody>
+        </table>
       </section>
       <section class="panel">
         <div class="section-title"><h2>商品ジャンルの除外候補</h2><span class="small">ジャンルだけではなく根拠語で判断</span></div>
@@ -645,8 +698,20 @@
     $('importBtn').addEventListener('click', importFile);
     $('apply').addEventListener('click', applyFilters);
     $('productUnit').addEventListener('change', () => { setDataset(); applyFilters(); });
+    function syncScoringInputs(changed) {
+      if (changed.dataset.for) {
+        const target = $(changed.dataset.for);
+        if (target) target.value = changed.value;
+      }
+      if (changed.id) {
+        for (const mirror of document.querySelectorAll(`#scoringPage input[data-for="${changed.id}"]`)) mirror.value = changed.value;
+      }
+    }
     for (const el of document.querySelectorAll('#dashboardPage input, #dashboardPage select, #scoringPage input')) {
-      if (el.id !== 'fileInput') el.addEventListener('change', () => { if (DATA.length) applyFilters(); });
+      if (el.id !== 'fileInput') el.addEventListener('change', () => {
+        if (el.closest('#scoringPage')) syncScoringInputs(el);
+        if (DATA.length) applyFilters();
+      });
     }
     $('exportCsv').addEventListener('click', () => exportRows(sortRows(current, filters().sortBy), 'selection_data.csv'));
     $('selectAllVisible').addEventListener('click', () => { for (const cb of document.querySelectorAll('.pickBox')) cb.checked = true; });
