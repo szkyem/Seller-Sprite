@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seller Sprite 商品選定ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --ink:#172033; --muted:#64748b; --line:#d7dee8; --bg:#eef2f6;
+      --blue:#263b5c; --blue2:#eaf1fb; --green:#13795b; --red:#a33a3a;
+      --yellow:#fff8d8;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Yu Gothic","Meiryo",sans-serif; line-height:1.45; }
+    header { background:#fff; border-bottom:5px solid var(--blue); padding:22px 28px 18px; position:sticky; top:0; z-index:10; }
+    h1 { margin:0 0 8px; font-size:26px; letter-spacing:0; }
+    .lead { margin:0; color:var(--muted); font-size:13px; }
+    .nav { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .nav button { background:#eef2f6; color:var(--blue); border:1px solid var(--line); }
+    .nav button.active { background:var(--blue); color:#fff; }
+    main { width:min(1400px, calc(100vw - 32px)); margin:18px auto 32px; }
+    .panel { background:#fff; border:1px solid var(--line); padding:16px; margin-bottom:14px; box-shadow:0 8px 20px rgba(24,39,75,.06); }
+    .import-panel { border-left:7px solid var(--green); }
+    .filters { display:grid; grid-template-columns:repeat(6, minmax(120px, 1fr)); gap:10px; }
+    label { display:block; font-size:11px; color:var(--muted); margin-bottom:4px; }
+    input, select { width:100%; height:34px; border:1px solid #cbd5e1; padding:5px 8px; font-size:13px; background:#fff; }
+    input[type="file"] { padding:4px; }
+    input[type="checkbox"] { width:16px; height:16px; }
+    button { height:34px; border:0; background:var(--blue); color:#fff; padding:0 12px; font-weight:700; cursor:pointer; }
+    button.secondary { background:#eef2f6; color:var(--blue); border:1px solid var(--line); }
+    button.danger { background:#9f2d2d; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+    .kpi { background:#fbfcfe; border:1px solid var(--line); padding:11px; }
+    .kpi b { display:block; font-size:22px; color:var(--blue); }
+    .kpi span { color:var(--muted); font-size:11px; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
+    th { position:sticky; top:112px; background:var(--blue); color:#fff; text-align:left; padding:8px; border:1px solid #1d2e49; z-index:5; }
+    td { padding:7px 8px; border:1px solid var(--line); vertical-align:top; word-break:break-word; }
+    tbody tr:hover { background:#f8fafc; }
+    tr.has-products td { background:var(--yellow); }
+    .section-title { display:flex; justify-content:space-between; gap:12px; align-items:end; margin:0 0 10px; }
+    h2 { margin:0; font-size:18px; border-left:7px solid var(--blue); padding-left:10px; letter-spacing:0; }
+    h3 { margin:0 0 8px; font-size:15px; color:var(--blue); letter-spacing:0; }
+    .small { color:var(--muted); font-size:12px; }
+    .link { color:#1d5fb8; text-decoration:none; }
+    .pill { display:inline-block; padding:2px 6px; background:var(--blue2); color:var(--blue); font-size:11px; margin-right:4px; }
+    .hidden { display:none; }
+    .notice { color:#334155; background:#f8fafc; border:1px solid var(--line); padding:10px 12px; }
+    .error { color:#7f1d1d; background:#fff1f1; border:1px solid #fecaca; padding:10px 12px; }
+    .guide-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+    .guide-card { border:1px solid var(--line); padding:13px 14px; background:#fbfcfe; }
+    .rule-table th { top:0; }
+    .score-table input { height:28px; padding:3px 6px; }
+    .score-table .axis-a td { background:#eef6ff; }
+    .score-table .axis-b td { background:#fff1f1; }
+    .score-table .axis-c td { background:#f1f8e9; }
+    .score-table .axis-d td { background:#fff7e6; }
+    .score-table .axis-e td { background:#f3f0ff; }
+    .score-table .axis-f td { background:#edf7f6; }
+    .score-table .axis-g td { background:#f7f7f7; }
+    .score-table .penalty-row td { background:#f3f4f6; }
+    @media (max-width: 1000px) {
+      .filters, .kpis, .guide-grid { grid-template-columns:repeat(2,1fr); }
+      table { min-width:1200px; }
+      .table-wrap { overflow:auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Seller Sprite 商品選定ダッシュボード</h1>
+    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保管・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
+    <div class="nav">
+      <button id="showDashboard" class="active">ダッシュボード</button>
+      <button id="showScoring">採点設定</button>
+      <button id="showSaved">商品保管</button>
+      <button id="showGuide">条件説明</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel import-panel" id="importPanel">
+      <div class="section-title">
+        <h2>データ取り込み</h2>
+        <span class="small">対象：Seller SpriteのExcel、例：master_merged.xlsx</span>
+      </div>
+      <div class="filters">
+        <div style="grid-column:span 3;">
+          <label>Excelファイル</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        </div>
+        <div>
+          <label>操作</label>
+          <button id="importBtn">取り込み</button>
+        </div>
+        <div style="grid-column:span 2;">
+          <label>読込状況</label>
+          <div id="importStatus" class="notice">未取り込みです。Excelを選択してください。</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboardPage">
+      <section class="panel">
+        <div class="filters">
+          <div><label>親カテゴリ</label><select id="parentCat"><option value="">すべて</option></select></div>
+          <div><label>販売帯</label><select id="salesBand"><option value="">すべて</option></select></div>
+          <div><label>月間販売数 以上</label><input id="minSales" type="number" value="300"></div>
+          <div><label>月間売上 以上</label><input id="minRevenue" type="number" value="500000"></div>
+          <div><label>評価値 以下</label><input id="maxRating" type="number" step="0.1" value="3.5"></div>
+          <div><label>評価数 以上</label><input id="minReviews" type="number" value="20"></div>
+          <div><label>セラー数 以下</label><input id="maxSellers" type="number" value="3"></div>
+          <div><label>LQS 以下</label><input id="maxLqs" type="number" step="0.1" value="8.5"></div>
+          <div><label>商品サイズ</label><select id="sizeClass"><option value="">すべて</option></select></div>
+          <div><label>商品カウント単位</label><select id="productUnit"><option value="parent">親ASIN単位</option><option value="asin">ASIN単位</option></select></div>
+          <div><label>ソート</label><select id="sortBy"><option value="score">総合スコア</option><option value="sales">販売数</option><option value="revenue">売上</option><option value="ratingAsc">評価が低い順</option><option value="sellersAsc">セラー数が少ない順</option><option value="gross">粗利益率</option></select></div>
+          <div><label>表示件数</label><input id="limit" type="number" value="100"></div>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button id="apply">反映</button>
+          <button id="exportCsv" class="secondary">データCSV</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="kpis">
+          <div class="kpi"><b id="kpiProducts">0</b><span id="kpiProductLabel">条件一致 商品数</span></div>
+          <div class="kpi"><b id="kpiRatio">0 / 0</b><span>検索結果 / 全件</span></div>
+          <div class="kpi"><b id="kpiCats">0</b><span>親カテゴリ数</span></div>
+          <div class="kpi"><b id="kpiSales">0</b><span>販売数合計</span></div>
+          <div class="kpi"><b id="kpiRevenue">0円</b><span>売上合計</span></div>
+          <div class="kpi"><b id="kpiAvgRating">0</b><span>平均評価</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><h2>親カテゴリー集計</h2><span class="small">全カテゴリを常時表示。1件以上あれば薄黄色で表示。行クリックで商品明細を絞り込み。</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:48px;">順位</th><th>親カテゴリ</th><th>商品数</th><th>販売数</th><th>売上</th><th>平均単価</th><th>平均評価</th><th>平均セラー</th><th>平均LQS</th></tr></thead>
+            <tbody id="categoryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><h2>商品明細：<span id="detailLabel">上位商品</span></h2><span class="small">気になる商品を選択して商品保管へ保存</span></div>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <button id="selectAllVisible" class="secondary">全選択</button>
+          <button id="clearVisible" class="secondary">選択解除</button>
+          <button id="saveSelected">保存</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:42px;">選択</th><th style="width:110px;">ASIN</th><th>商品名</th><th>カテゴリ</th><th style="width:100px;">点数</th><th style="width:100px;">判定</th><th style="width:78px;">販売数</th><th style="width:95px;">売上</th><th style="width:82px;">単価</th><th style="width:82px;">評価</th><th style="width:82px;">競合</th><th>根拠</th></tr></thead>
+            <tbody id="productBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="scoringPage" class="hidden">
+      <section class="panel">
+        <div class="section-title"><h2>採点・減点ロジック設定</h2><span class="small">点数と条件数値は変更できます。変更後はダッシュボードへ戻ると再計算されます。</span></div>
+        <div class="table-wrap">
+          <table class="score-table">
+            <thead><tr><th style="width:13%;">軸</th><th style="width:16%;">配点</th><th>条件と点数</th></tr></thead>
+            <tbody>
+              <tr class="axis-a"><td>A 市場の厚み</td><td>最大15点</td><td>販売数 <input id="thSales300" value="300"> 以上 <input id="ptSales300" value="5">点、<input id="thSales1000" value="1000"> 以上 <input id="ptSales1000" value="10">点、<input id="thSales5000" value="5000"> 以上 <input id="ptSales5000" value="15">点。売上 <input id="thRevenueLow" value="500000"> 未満なら市場点上限 <input id="capRevenueLow" value="5">点。</td></tr>
+              <tr class="axis-b"><td>B 不満シグナル</td><td>最大20点</td><td>評価数 <input id="thReviewBase" value="20"> 以上で、評価 <input id="thRating38" value="3.8"> 以下 <input id="ptRating38" value="8">点、<input id="thRating35" value="3.5"> 以下 <input id="ptRating35" value="14">点、<input id="thRating32" value="3.2"> 以下 <input id="ptRating32" value="20">点。</td></tr>
+              <tr class="axis-c"><td>C 分析可能性</td><td>最大10点</td><td>評価数 <input id="thReview20" value="20"> 以上 <input id="ptReview20" value="4">点、<input id="thReview50" value="50"> 以上 <input id="ptReview50" value="8">点。ただし <input id="thReview3001" value="3001"> 以上 <input id="thReview5000" value="5000"> 以下は <input id="ptReview3001" value="3">点。</td></tr>
+              <tr class="axis-d"><td>D 参入余地</td><td>最大15点</td><td>セラー数 <input id="thSeller2" value="2"> 以下 <input id="ptSeller2" value="8">点、<input id="thSeller3" value="3"> から <input id="thSeller5" value="5"> は <input id="ptSeller5" value="4">点。LQS <input id="thLqs5" value="5"> 未満 <input id="ptLqs5" value="7">点、<input id="thLqs75" value="7.5"> 以下 <input id="ptLqs75" value="3">点。</td></tr>
+              <tr class="axis-e"><td>E 採算</td><td>最大10点</td><td>粗利益率 <input id="thGross50" value="0.5"> 以上 <input id="ptGross50" value="4">点、<input id="thGross65" value="0.65"> 以上 <input id="ptGross65" value="7">点。価格 <input id="thPrice1500" value="1500"> 以上 <input id="ptPrice1500" value="3">点。</td></tr>
+              <tr class="axis-f"><td>F 物流適性</td><td>最大5点</td><td>小型 <input id="ptSmall" value="5">点、標準 <input id="ptStandard" value="3">点。</td></tr>
+              <tr class="axis-g"><td>G 構造改善しやすさ</td><td>最大5点</td><td>固定、折りたたみ、排水、漏れ防止などの構造改善語がある場合 <input id="ptStructureWord" value="5">点。</td></tr>
+              <tr class="penalty-row"><td>減点</td><td>各条件</td><td>レビュー要塞 <input id="pnFortress" value="20">点、コモディティ <input id="pnCommodity" value="15">点、大型 <input id="pnLarge" value="10">点、低単価 <input id="pnLowPrice" value="10">点、多バリエーション <input id="pnVariation" value="8">点、季節依存 <input id="pnSeason" value="6">点、単純代替 <input id="pnSimple" value="8">点。</td></tr>
+              <tr class="penalty-row"><td>減点判定の条件</td><td>数値条件</td><td>レビュー要塞 <input id="thFortressReviews" value="3000"> 件超。コモディティは価格 <input id="thCommodityPrice" value="1000"> 未満、セラー数 <input id="thCommoditySellers" value="5"> 以上、バリエーション <input id="thCommodityVariation" value="20"> 以上のうち2つ以上。低単価は <input id="thLowPrice" value="500"> 未満。多バリエーションは <input id="thVariationHigh" value="30"> 以上。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="savedPage" class="hidden">
+      <section class="panel">
+        <div class="section-title"><h2>商品保管ページ</h2><span class="small">保存商品はこのブラウザのlocalStorageに保存されます。別PCには自動共有されません。</span></div>
+        <div class="kpis" style="margin-bottom:12px;">
+          <div class="kpi"><b id="savedCount">0</b><span>保存商品数</span></div>
+          <div class="kpi"><b id="savedSales">0</b><span>販売数合計</span></div>
+          <div class="kpi"><b id="savedRevenue">0円</b><span>売上合計</span></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <button id="savedSelectAll" class="secondary">全選択</button>
+          <button id="savedClear" class="secondary">選択解除</button>
+          <button id="deleteSaved" class="danger">保存から削除</button>
+          <button id="exportSavedCsv">保存商品CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:42px;">選択</th><th style="width:110px;">ASIN</th><th>商品名</th><th>カテゴリ</th><th style="width:100px;">点数</th><th style="width:100px;">判定</th><th style="width:78px;">販売数</th><th style="width:95px;">売上</th><th style="width:82px;">単価</th><th style="width:82px;">評価</th><th style="width:82px;">競合</th><th>根拠</th></tr></thead>
+            <tbody id="savedBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="guidePage" class="hidden">
+      <section class="panel">
+        <div class="section-title"><h2>条件説明</h2><span class="small">会議用の前提整理</span></div>
+        <div class="guide-grid">
+          <div class="guide-card"><h3>商品カウント単位</h3><p><b>親ASIN単位</b>はバリエーションを1商品として集約します。<b>ASIN単位</b>は各行を1商品として扱います。</p></div>
+          <div class="guide-card"><h3>LQS</h3><p>Listing Quality Scoreの略です。Seller Sprite上の商品ページ品質スコアで、低いほどページ改善余地がある可能性を見ます。</p></div>
+          <div class="guide-card"><h3>検索結果 / 全件</h3><p>左側は現在条件に一致した件数、右側は読み込んだExcelから作成した対象データ全件数です。</p></div>
+          <div class="guide-card"><h3>NG判定</h3><p>初期段階ではカテゴリ名だけで除外せず、商品名・カテゴリ・概要に根拠語がある場合にフラグ表示します。</p></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="section-title"><h2>商品ジャンルの除外候補</h2><span class="small">ジャンルだけではなく根拠語で判断</span></div>
+        <table class="rule-table">
+          <thead><tr><th style="width:20%;">判断</th><th>対象</th><th style="width:30%;">理由</th></tr></thead>
+          <tbody>
+            <tr><td>原則除外</td><td>医療機器、医薬品、医薬部外品、健康食品・サプリ、食品・飲料、化粧品本体、武器・刃物・危険物、消防・防犯機器、無線・Bluetooth機器、PSE電気用品、PSC特定製品、車・バイクの保安部品</td><td>薬機法、食品衛生法、技適、電気用品安全法、PSC、型式認証、事故責任などが重い。</td></tr>
+            <tr><td>要確認</td><td>食品に接触する器具・容器、化学品・洗剤・塗料、乳幼児関連、強い効能や安全訴求が必要な商品</td><td>仕様・表示・成分・対象年齢により規制や専門確認が必要になる。</td></tr>
+            <tr><td>仕様次第で検討可</td><td>非電気の防災周辺、走行に無関係な車内アクセサリ、ペットの非食品・非健康品、金型が要る構造商品</td><td>安全性・非規制・サイズ・初回投資の条件が合えば検討余地あり。</td></tr>
+            <tr><td>FBA注意</td><td>液体、粉、スプレー、電池、磁石、割れ物、大型、長尺、重量物、季節在庫</td><td>危険物判定、破損、保管・配送コスト、返品再販の難しさがある。</td></tr>
+            <tr><td>市場構造上避けたい</td><td>激安500円未満、アパレル・ファッション、書籍・コンテンツ・ソフト、単なる箱・袋・フック等</td><td>利益が出にくい、返品率が高い、製造特許や構造改善余地が少ない。</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="panel">
+        <div class="section-title"><h2>加点・減点の考え方</h2><span class="small">採点設定で変更可能</span></div>
+        <table class="rule-table">
+          <thead><tr><th style="width:20%;">区分</th><th>見る項目</th><th style="width:32%;">考え方</th></tr></thead>
+          <tbody>
+            <tr><td>加点：市場</td><td>月間販売数、月間売上</td><td>酷評でも売れている商品を優先。売上が小さい場合は市場点に上限をかける。</td></tr>
+            <tr><td>加点：不満</td><td>評価値、評価数</td><td>評価が低く、かつレビュー母数がある商品を優先。レビューが少なすぎる低評価は偶然の可能性がある。</td></tr>
+            <tr><td>加点：参入余地</td><td>セラー数、LQS</td><td>セラーが少なく、LQSが低い商品は競合やページ改善余地がある可能性として加点。</td></tr>
+            <tr><td>加点：採算・物流</td><td>粗利益率、価格、商品サイズ</td><td>利益率と価格帯を見る。小型・標準サイズは初回ロットやFBA運用に向きやすい。</td></tr>
+            <tr><td>加点：構造改善</td><td>タイトル、カテゴリ、概要</td><td>固定、折りたたみ、排水、漏れ防止など構造改善に関係する言葉がある場合に加点。</td></tr>
+            <tr><td>減点</td><td>レビュー要塞、コモディティ、大型、低単価、多バリエーション、季節依存、単純代替</td><td>後発が勝ちにくい、価格競争になりやすい、物流負担が重い、差別化しにくい商品を減点。</td></tr>
+            <tr><td>NG/要確認</td><td>規制・安全・FBA注意語</td><td>点数とは別枠。該当しても即除外せず、商品明細で理由付きフラグとして表示する。</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const fmt = new Intl.NumberFormat('ja-JP');
+    let DATASETS = { parent: [], asin: [] };
+    let DATA = DATASETS.parent;
+    let current = [];
+    let selectedCat = null;
+    const $ = id => document.getElementById(id);
+
+    const requiredColumns = ['ASIN','タイトル','カテゴリー','月間販売数','月間販売額(円)','価格(円)','評価値','評価数','LQS','セラー数'];
+    const structureWords = ['固定','折りたたみ','排水','漏れ防止','滑り止め','調整','収納','分解','交換','補修','耐久','防水','吸盤','マグネット','吊り下げ'];
+    const simpleWords = ['箱','袋','フック','ケース','ポーチ','シール','ステッカー','ボックス','バッグ','カゴ','トレー','クリップ','ホルダー','スタンド','ラック'];
+    const seasonWords = ['クリスマス','ハロウィン','夏用','冬用','母の日','父の日','正月','バレンタイン'];
+    const excludeWords = ['医療機器','医薬品','医薬部外品','サプリ','健康食品','食品','飲料','化粧品','香水','シャンプー','刃物','Bluetooth','ワイヤレス','無線','PSE','バッテリー','充電池','消防','防犯カメラ','保安部品'];
+    const confirmWords = ['食品接触','食器','容器','洗剤','塗料','化学','乳幼児','赤ちゃん','抗菌','除菌','防カビ','防虫','転倒防止','安全'];
+    const fbaWords = ['液体','粉','スプレー','電池','磁石','ガラス','陶器','大型','長尺','重量'];
+
+    function uniq(arr) { return [...new Set(arr.filter(v => v !== undefined && v !== null && String(v).trim() !== '').map(String))].sort((a,b)=>a.localeCompare(b,'ja')); }
+    function toNum(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      const cleaned = String(value).replace(/[,円￥%\s]/g, '').replace(/[^\d.-]/g, '');
+      const n = Number(cleaned);
+      return Number.isFinite(n) ? n : 0;
+    }
+    function compact(value, limit=180) {
+      return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+    }
+    function cleanParentCategory(row) {
+      const category = String(row['カテゴリー'] ?? '');
+      if (category.includes(':')) {
+        const first = category.split(':')[0].trim();
+        if (first) return first;
+      }
+      let parent = String(row['親カテゴリー'] ?? '').replace(/の売れ筋ランキングを見る/g, '').trim();
+      if (parent.includes('ホーム') && parent.includes('キッチン')) return 'ホーム＆キッチン';
+      if (parent.includes('文房具') || parent.includes('オフィス用品')) return '文房具・オフィス用品';
+      return parent || '未分類';
+    }
+    function normalizeRow(row) {
+      const title = compact(row['タイトル'], 220);
+      const category = compact(row['カテゴリー'], 260);
+      const overview = compact(row['製品概要'], 260);
+      const parentCat = cleanParentCategory(row);
+      const sales = Math.round(toNum(row['月間販売数']));
+      const revenue = Math.round(toNum(row['月間販売額(円)']));
+      const rating = Math.round(toNum(row['評価値']) * 100) / 100;
+      const reviews = Math.round(toNum(row['評価数']));
+      const sellers = Math.round(toNum(row['セラー数']) * 10) / 10;
+      const lqs = Math.round(toNum(row['LQS']) * 10) / 10;
+      const price = Math.round(toNum(row['価格(円)']));
+      const grossRaw = toNum(row['粗利益']);
+      const gross = grossRaw > 1 ? grossRaw / 100 : grossRaw;
+      return {
+        key: String(row['ASIN'] ?? ''),
+        asin: String(row['ASIN'] ?? ''),
+        parentAsin: String(row['親ASIN'] ?? ''),
+        title, category, overview,
+        url: String(row['URL'] ?? row['タイトルリンク'] ?? ''),
+        image: String(row['メイン画像'] ?? ''),
+        parentCat,
+        childCat: String(row['子カテゴリー'] ?? ''),
+        searchCat: String(row['検索カテゴリ'] ?? ''),
+        salesBand: String(row['販売帯'] ?? ''),
+        brand: compact(row['ブランド'], 80),
+        sales, revenue, price, rating, reviews,
+        reviewGrowth: Math.round(toNum(row['月間評価値増加数'])),
+        sellers, lqs, gross,
+        sellingDays: Math.round(toNum(row['販売時間'])),
+        sizeClass: String(row['商品サイズ区分'] ?? ''),
+        shipMethod: String(row['配送方法'] ?? ''),
+        sellerLocation: String(row['セラー所在地'] ?? ''),
+        bestSeller: String(row['Best Sellerマーク'] ?? ''),
+        amazonChoice: String(row["Amazon's Choice"] ?? ''),
+        variations: Math.round(toNum(row['バリエーション数'])),
+        appearance: Math.round(toNum(row['出現ファイル数'])) || 1,
+        raw: row
+      };
+    }
+    function buildDatasets(rows) {
+      const asin = rows.map(normalizeRow).filter(r => r.asin);
+      const groups = new Map();
+      for (const r of asin) {
+        const key = r.parentAsin && r.parentAsin.trim() ? r.parentAsin : r.asin;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+      }
+      const parent = [];
+      for (const [key, group] of groups) {
+        const rep = [...group].sort((a,b)=>(b.revenue||0)-(a.revenue||0))[0];
+        const nums = field => group.map(g => Number(g[field]) || 0);
+        parent.push({
+          ...rep,
+          key,
+          parentAsin: rep.parentAsin || key,
+          sales: Math.max(...nums('sales')),
+          revenue: Math.max(...nums('revenue')),
+          price: Math.round(nums('price').sort((a,b)=>a-b)[Math.floor(group.length/2)] || 0),
+          rating: Math.max(...nums('rating')),
+          reviews: Math.max(...nums('reviews')),
+          reviewGrowth: Math.max(...nums('reviewGrowth')),
+          sellers: Math.min(...nums('sellers').filter(n => n > 0).concat([0])),
+          lqs: Math.max(...nums('lqs')),
+          gross: Math.max(...nums('gross')),
+          sellingDays: Math.max(...nums('sellingDays')),
+          variations: Math.max(...nums('variations'), group.length),
+          appearance: Math.max(...nums('appearance')),
+        });
+      }
+      return { parent, asin };
+    }
+    function setStatus(text, error=false) {
+      const el = $('importStatus');
+      el.textContent = text;
+      el.className = error ? 'error' : 'notice';
+    }
+    async function importFile() {
+      const file = $('fileInput').files[0];
+      if (!file) { setStatus('Excelファイルを選択してください。', true); return; }
+      if (!window.XLSX) { setStatus('Excel読込ライブラリを取得できません。インターネット接続またはCDN許可を確認してください。', true); return; }
+      setStatus('読み込み中です。ファイルサイズにより数秒から十数秒かかります。');
+      await new Promise(r => setTimeout(r, 30));
+      try {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+        const cols = rows.length ? Object.keys(rows[0]) : [];
+        const missing = requiredColumns.filter(c => !cols.includes(c));
+        if (missing.length) {
+          setStatus('必要列が不足しています: ' + missing.join(', '), true);
+          return;
+        }
+        DATASETS = buildDatasets(rows);
+        setDataset();
+        setStatus(`読込完了：元データ ${fmt.format(rows.length)}行 / 親ASIN ${fmt.format(DATASETS.parent.length)}件 / ASIN ${fmt.format(DATASETS.asin.length)}件`);
+        applyFilters();
+      } catch (e) {
+        console.error(e);
+        setStatus('読み込みに失敗しました。Excel形式または列名を確認してください。', true);
+      }
+    }
+    function fillSelect(id, values) {
+      const el = $(id);
+      const currentValue = el.value;
+      el.innerHTML = '<option value="">すべて</option>';
+      for (const v of values) {
+        const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o);
+      }
+      if (values.includes(currentValue)) el.value = currentValue;
+    }
+    function setDataset() {
+      DATA = DATASETS[$('productUnit').value] || [];
+      fillSelect('parentCat', uniq(DATA.map(d => d.parentCat)));
+      fillSelect('salesBand', uniq(DATA.map(d => d.salesBand)));
+      fillSelect('sizeClass', uniq(DATA.map(d => d.sizeClass)));
+    }
+    function filters() {
+      return {
+        parentCat: $('parentCat').value,
+        salesBand: $('salesBand').value,
+        minSales: +$('minSales').value || 0,
+        minRevenue: +$('minRevenue').value || 0,
+        maxRating: +$('maxRating').value || 99,
+        minReviews: +$('minReviews').value || 0,
+        maxSellers: +$('maxSellers').value || 99,
+        maxLqs: +$('maxLqs').value || 99,
+        sizeClass: $('sizeClass').value,
+        sortBy: $('sortBy').value,
+        limit: +$('limit').value || 100,
+      };
+    }
+    function scoreSettings() {
+      const val = id => +$(id).value || 0;
+      return {
+        thSales300:val('thSales300'), thSales1000:val('thSales1000'), thSales5000:val('thSales5000'), thRevenueLow:val('thRevenueLow'),
+        thReviewBase:val('thReviewBase'), thRating38:val('thRating38'), thRating35:val('thRating35'), thRating32:val('thRating32'),
+        thReview20:val('thReview20'), thReview50:val('thReview50'), thReview3001:val('thReview3001'), thReview5000:val('thReview5000'),
+        thSeller2:val('thSeller2'), thSeller3:val('thSeller3'), thSeller5:val('thSeller5'), thLqs5:val('thLqs5'), thLqs75:val('thLqs75'),
+        thGross50:val('thGross50'), thGross65:val('thGross65'), thPrice1500:val('thPrice1500'),
+        thFortressReviews:val('thFortressReviews'), thCommodityPrice:val('thCommodityPrice'), thCommoditySellers:val('thCommoditySellers'), thCommodityVariation:val('thCommodityVariation'),
+        thLowPrice:val('thLowPrice'), thVariationHigh:val('thVariationHigh'),
+        ptSales300:val('ptSales300'), ptSales1000:val('ptSales1000'), ptSales5000:val('ptSales5000'), capRevenueLow:val('capRevenueLow'),
+        ptRating38:val('ptRating38'), ptRating35:val('ptRating35'), ptRating32:val('ptRating32'),
+        ptReview20:val('ptReview20'), ptReview50:val('ptReview50'), ptReview3001:val('ptReview3001'),
+        ptSeller2:val('ptSeller2'), ptSeller5:val('ptSeller5'), ptLqs5:val('ptLqs5'), ptLqs75:val('ptLqs75'),
+        ptGross50:val('ptGross50'), ptGross65:val('ptGross65'), ptPrice1500:val('ptPrice1500'), ptSmall:val('ptSmall'), ptStandard:val('ptStandard'), ptStructureWord:val('ptStructureWord'),
+        pnFortress:val('pnFortress'), pnCommodity:val('pnCommodity'), pnLarge:val('pnLarge'), pnLowPrice:val('pnLowPrice'), pnVariation:val('pnVariation'), pnSeason:val('pnSeason'), pnSimple:val('pnSimple')
+      };
+    }
+    function containsAny(text, words) { return words.filter(w => text.includes(w)); }
+    function scoreProduct(d) {
+      const s = scoreSettings();
+      const text = [d.title,d.category,d.overview,d.parentCat,d.childCat].join(' ');
+      const plus = [], minus = [], flags = [];
+      let add = 0, sub = 0, market = 0;
+      if (d.sales >= s.thSales5000) market = s.ptSales5000;
+      else if (d.sales >= s.thSales1000) market = s.ptSales1000;
+      else if (d.sales >= s.thSales300) market = s.ptSales300;
+      if (d.revenue < s.thRevenueLow) market = Math.min(market, s.capRevenueLow);
+      if (market > 0) plus.push(`市場+${market}`);
+      add += market;
+      let pain = 0;
+      if (d.reviews >= s.thReviewBase) {
+        if (d.rating <= s.thRating32) pain = s.ptRating32;
+        else if (d.rating <= s.thRating35) pain = s.ptRating35;
+        else if (d.rating <= s.thRating38) pain = s.ptRating38;
+      }
+      if (pain > 0) plus.push(`不満+${pain}`);
+      add += pain;
+      let depth = 0;
+      if (d.reviews >= s.thReview50 && d.reviews < s.thReview3001) depth = s.ptReview50;
+      else if (d.reviews >= s.thReview20 && d.reviews < s.thReview3001) depth = s.ptReview20;
+      else if (d.reviews >= s.thReview3001 && d.reviews <= s.thReview5000) depth = s.ptReview3001;
+      if (depth > 0) plus.push(`分析+${depth}`);
+      add += depth;
+      let opp = 0;
+      if (d.sellers > 0 && d.sellers <= s.thSeller2) opp += s.ptSeller2;
+      else if (d.sellers >= s.thSeller3 && d.sellers <= s.thSeller5) opp += s.ptSeller5;
+      if (d.lqs > 0 && d.lqs < s.thLqs5) opp += s.ptLqs5;
+      else if (d.lqs >= s.thLqs5 && d.lqs <= s.thLqs75) opp += s.ptLqs75;
+      if (opp > 0) plus.push(`参入+${opp}`);
+      add += opp;
+      let profit = 0;
+      if (d.price >= 500) {
+        if (d.gross >= s.thGross65) profit += s.ptGross65;
+        else if (d.gross >= s.thGross50) profit += s.ptGross50;
+        if (d.price >= s.thPrice1500) profit += s.ptPrice1500;
+      }
+      if (profit > 0) plus.push(`採算+${profit}`);
+      add += profit;
+      let logistics = 0;
+      if (d.sizeClass === '小型') logistics = s.ptSmall;
+      else if (d.sizeClass === '標準') logistics = s.ptStandard;
+      if (logistics > 0) plus.push(`物流+${logistics}`);
+      add += logistics;
+      const structureHits = containsAny(text, structureWords);
+      if (structureHits.length) { add += s.ptStructureWord; plus.push(`構造+${s.ptStructureWord}:${structureHits.slice(0,2).join('/')}`); }
+      if (d.reviews > s.thFortressReviews && (String(d.bestSeller).toUpperCase() === 'Y' || String(d.amazonChoice).toUpperCase() === 'Y')) { sub += s.pnFortress; minus.push(`レビュー要塞-${s.pnFortress}`); }
+      const commodityChecks = [(d.price < s.thCommodityPrice), (d.sellers >= s.thCommoditySellers), (d.variations >= s.thCommodityVariation)].filter(Boolean).length;
+      if (commodityChecks >= 2) { sub += s.pnCommodity; minus.push(`コモディティ-${s.pnCommodity}`); }
+      if (d.sizeClass === '大型') { sub += s.pnLarge; minus.push(`大型-${s.pnLarge}`); }
+      if (d.price < s.thLowPrice) { sub += s.pnLowPrice; minus.push(`低単価-${s.pnLowPrice}`); }
+      if (d.variations >= s.thVariationHigh) { sub += s.pnVariation; minus.push(`多バリエーション-${s.pnVariation}`); }
+      const seasonHits = containsAny(text, seasonWords);
+      if (seasonHits.length) { sub += s.pnSeason; minus.push(`季節-${s.pnSeason}:${seasonHits.slice(0,2).join('/')}`); }
+      const simpleHits = containsAny(text, simpleWords);
+      if (simpleHits.length && !structureHits.length) { sub += s.pnSimple; minus.push(`単純代替-${s.pnSimple}:${simpleHits.slice(0,2).join('/')}`); }
+      const ex = containsAny(text, excludeWords);
+      const cn = containsAny(text, confirmWords);
+      const fb = containsAny(text, fbaWords);
+      if (ex.length) flags.push(`除外候補:${ex.slice(0,3).join('/')}`);
+      if (cn.length) flags.push(`要確認:${cn.slice(0,3).join('/')}`);
+      if (fb.length) flags.push(`FBA注意:${fb.slice(0,3).join('/')}`);
+      const total = Math.max(0, Math.round((add - sub) * 10) / 10);
+      let status = 'B 注目候補';
+      if (ex.length || total < 40) status = 'D 除外候補';
+      else if (cn.length || fb.length) status = 'C 要確認';
+      else if (total >= 70) status = 'A 深掘り候補';
+      return { total, add:Math.round(add*10)/10, sub:Math.round(sub*10)/10, plus, minus, flags, status };
+    }
+    function sortRows(rows, sortBy) {
+      const copy = [...rows];
+      const desc = k => copy.sort((a,b)=>(b[k]||0)-(a[k]||0));
+      if (sortBy === 'sales') return desc('sales');
+      if (sortBy === 'revenue') return desc('revenue');
+      if (sortBy === 'ratingAsc') return copy.sort((a,b)=>(a.rating||0)-(b.rating||0));
+      if (sortBy === 'sellersAsc') return copy.sort((a,b)=>(a.sellers||0)-(b.sellers||0));
+      if (sortBy === 'gross') return desc('gross');
+      return copy.sort((a,b)=>scoreProduct(b).total-scoreProduct(a).total);
+    }
+    function applyFilters() {
+      selectedCat = null;
+      const f = filters();
+      current = DATA.filter(d =>
+        (!f.parentCat || d.parentCat === f.parentCat) &&
+        (!f.salesBand || d.salesBand === f.salesBand) &&
+        (!f.sizeClass || d.sizeClass === f.sizeClass) &&
+        d.sales >= f.minSales &&
+        d.revenue >= f.minRevenue &&
+        d.rating <= f.maxRating &&
+        d.reviews >= f.minReviews &&
+        d.sellers <= f.maxSellers &&
+        d.lqs <= f.maxLqs
+      );
+      render();
+    }
+    function categoryAgg(rows) {
+      const map = new Map();
+      for (const cat of uniq(DATA.map(d => d.parentCat || '未分類'))) {
+        map.set(cat, { parentCat:cat, count:0, sales:0, revenue:0, price:0, rating:0, sellers:0, lqs:0 });
+      }
+      for (const d of rows) {
+        const key = d.parentCat || '未分類';
+        if (!map.has(key)) map.set(key, { parentCat:key, count:0, sales:0, revenue:0, price:0, rating:0, sellers:0, lqs:0 });
+        const g = map.get(key);
+        g.count++; g.sales += d.sales; g.revenue += d.revenue; g.price += d.price; g.rating += d.rating; g.sellers += d.sellers; g.lqs += d.lqs;
+      }
+      return [...map.values()].map(g => ({ ...g, avgPrice:g.count ? g.price/g.count : 0, avgRating:g.count ? g.rating/g.count : 0, avgSellers:g.count ? g.sellers/g.count : 0, avgLqs:g.count ? g.lqs/g.count : 0 }))
+        .sort((a,b)=> (b.count > 0) - (a.count > 0) || b.revenue - a.revenue || a.parentCat.localeCompare(b.parentCat, 'ja'));
+    }
+    function renderKpis(rows, cats) {
+      $('kpiProducts').textContent = fmt.format(rows.length);
+      $('kpiProductLabel').textContent = $('productUnit').value === 'parent' ? '条件一致 商品数（親ASIN）' : '条件一致 商品数（ASIN）';
+      $('kpiRatio').textContent = `${fmt.format(rows.length)} / ${fmt.format(DATA.length)}`;
+      $('kpiCats').textContent = fmt.format(cats.length);
+      $('kpiSales').textContent = fmt.format(rows.reduce((s,d)=>s+d.sales,0));
+      $('kpiRevenue').textContent = fmt.format(rows.reduce((s,d)=>s+d.revenue,0)) + '円';
+      $('kpiAvgRating').textContent = rows.length ? (rows.reduce((s,d)=>s+d.rating,0)/rows.length).toFixed(2) : '0';
+    }
+    function renderCategories(cats) {
+      $('categoryBody').innerHTML = cats.map((g,i)=>`
+        <tr class="${g.count > 0 ? 'has-products' : ''}" data-parent="${String(g.parentCat).replaceAll('"','&quot;')}">
+          <td>${i+1}</td><td>${g.parentCat}</td><td>${fmt.format(g.count)}</td>
+          <td>${fmt.format(Math.round(g.sales))}</td><td>${fmt.format(Math.round(g.revenue))}円</td>
+          <td>${fmt.format(Math.round(g.avgPrice))}円</td><td>${g.avgRating.toFixed(2)}</td><td>${g.avgSellers.toFixed(1)}</td><td>${g.avgLqs.toFixed(1)}</td>
+        </tr>`).join('');
+      for (const tr of $('categoryBody').querySelectorAll('tr')) {
+        tr.addEventListener('click', () => { selectedCat = { parentCat: tr.dataset.parent }; renderProducts(); });
+      }
+    }
+    function renderProducts() {
+      const f = filters();
+      let rows = selectedCat ? current.filter(d => d.parentCat === selectedCat.parentCat) : current;
+      rows = sortRows(rows, f.sortBy).slice(0, f.limit);
+      $('detailLabel').textContent = selectedCat ? selectedCat.parentCat : '上位商品';
+      $('productBody').innerHTML = renderProductRows(rows, false);
+    }
+    function renderProductRows(rows, saved=false) {
+      return rows.map(d => {
+        const sc = scoreProduct(d);
+        const reasons = [...sc.plus.slice(0,2), ...sc.minus.slice(0,2), ...sc.flags.slice(0,2)].join('<br>');
+        return `
+        <tr>
+          <td><input class="${saved ? 'savedBox' : 'pickBox'}" type="checkbox" data-key="${saved ? d.savedKey : d.key}"></td>
+          <td><a class="link" href="${d.url}" target="_blank">${d.asin}</a></td>
+          <td>${d.title}<br><span class="small">${d.brand} <span class="pill">variation:${d.variations}</span></span></td>
+          <td>${d.parentCat}<br><span class="small">${d.childCat}</span></td>
+          <td><b>${sc.total}点</b><br><span class="small">+${sc.add} / -${sc.sub}</span></td>
+          <td>${sc.status}</td>
+          <td>${fmt.format(d.sales)}</td><td>${fmt.format(d.revenue)}円</td><td>${fmt.format(d.price)}円</td>
+          <td>${d.rating}<br><span class="small">${fmt.format(d.reviews)}件</span></td><td>${d.sellers}<br><span class="small">LQS ${d.lqs}</span></td><td>${reasons}</td>
+        </tr>`;
+      }).join('');
+    }
+    function render() {
+      const cats = categoryAgg(current);
+      renderKpis(current, cats);
+      renderCategories(cats);
+      renderProducts();
+      renderSaved();
+    }
+    function productMap() {
+      const m = new Map();
+      for (const d of DATASETS.parent) m.set('parent:' + d.key, d);
+      for (const d of DATASETS.asin) m.set('asin:' + d.key, d);
+      return m;
+    }
+    function savedKeys() {
+      try { return JSON.parse(localStorage.getItem('selectionSavedKeys') || '[]'); } catch { return []; }
+    }
+    function setSavedKeys(keys) { localStorage.setItem('selectionSavedKeys', JSON.stringify([...new Set(keys)])); }
+    function renderSaved() {
+      const m = productMap();
+      const rows = savedKeys().map(k => {
+        const d = m.get(k);
+        return d ? { ...d, savedKey:k } : null;
+      }).filter(Boolean);
+      $('savedBody').innerHTML = renderProductRows(rows, true);
+      $('savedCount').textContent = fmt.format(rows.length);
+      $('savedSales').textContent = fmt.format(rows.reduce((s,d)=>s+d.sales,0));
+      $('savedRevenue').textContent = fmt.format(rows.reduce((s,d)=>s+d.revenue,0)) + '円';
+    }
+    function exportRows(rows, filename, withScore=true) {
+      const cols = withScore ? ['asin','parentAsin','title','parentCat','childCat','sales','revenue','price','rating','reviews','sellers','lqs','sellingDays','score','status','addScore','minusScore','plusReasons','minusReasons','flags','url'] : ['asin','parentAsin','title','parentCat','childCat','sales','revenue','price','rating','reviews','sellers','lqs','sellingDays','url'];
+      const csvRows = rows.map(r => {
+        const sc = scoreProduct(r);
+        const obj = { ...r, score:sc.total, status:sc.status, addScore:sc.add, minusScore:sc.sub, plusReasons:sc.plus.join(' / '), minusReasons:sc.minus.join(' / '), flags:sc.flags.join(' / ') };
+        return cols.map(c => '"' + String(obj[c] ?? '').replaceAll('"','""') + '"').join(',');
+      });
+      const csv = [cols.join(',')].concat(csvRows).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+    function showPage(page) {
+      $('dashboardPage').classList.toggle('hidden', page !== 'dashboard');
+      $('scoringPage').classList.toggle('hidden', page !== 'scoring');
+      $('savedPage').classList.toggle('hidden', page !== 'saved');
+      $('guidePage').classList.toggle('hidden', page !== 'guide');
+      $('showDashboard').classList.toggle('active', page === 'dashboard');
+      $('showScoring').classList.toggle('active', page === 'scoring');
+      $('showSaved').classList.toggle('active', page === 'saved');
+      $('showGuide').classList.toggle('active', page === 'guide');
+      if (page === 'saved') renderSaved();
+      if (page === 'dashboard') applyFilters();
+    }
+
+    $('importBtn').addEventListener('click', importFile);
+    $('apply').addEventListener('click', applyFilters);
+    $('productUnit').addEventListener('change', () => { setDataset(); applyFilters(); });
+    for (const el of document.querySelectorAll('#dashboardPage input, #dashboardPage select, #scoringPage input')) {
+      if (el.id !== 'fileInput') el.addEventListener('change', () => { if (DATA.length) applyFilters(); });
+    }
+    $('exportCsv').addEventListener('click', () => exportRows(sortRows(current, filters().sortBy), 'selection_data.csv'));
+    $('selectAllVisible').addEventListener('click', () => { for (const cb of document.querySelectorAll('.pickBox')) cb.checked = true; });
+    $('clearVisible').addEventListener('click', () => { for (const cb of document.querySelectorAll('.pickBox')) cb.checked = false; });
+    $('saveSelected').addEventListener('click', () => {
+      const unit = $('productUnit').value;
+      const checked = [...document.querySelectorAll('.pickBox:checked')].map(cb => unit + ':' + cb.dataset.key);
+      setSavedKeys(savedKeys().concat(checked));
+      renderSaved();
+      showPage('saved');
+    });
+    $('savedSelectAll').addEventListener('click', () => { for (const cb of document.querySelectorAll('.savedBox')) cb.checked = true; });
+    $('savedClear').addEventListener('click', () => { for (const cb of document.querySelectorAll('.savedBox')) cb.checked = false; });
+    $('deleteSaved').addEventListener('click', () => {
+      const del = new Set([...document.querySelectorAll('.savedBox:checked')].map(cb => cb.dataset.key));
+      setSavedKeys(savedKeys().filter(k => !del.has(k)));
+      renderSaved();
+    });
+    $('exportSavedCsv').addEventListener('click', () => {
+      const m = productMap();
+      exportRows(savedKeys().map(k => m.get(k)).filter(Boolean), 'saved_products.csv', false);
+    });
+    $('showDashboard').addEventListener('click', () => showPage('dashboard'));
+    $('showScoring').addEventListener('click', () => showPage('scoring'));
+    $('showSaved').addEventListener('click', () => showPage('saved'));
+    $('showGuide').addEventListener('click', () => showPage('guide'));
+    render();
+  </script>
+</body>
+</html>
