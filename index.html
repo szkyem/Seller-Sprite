@@ -116,7 +116,7 @@
           <div><label>LQS 以下</label><input id="maxLqs" type="number" step="0.1" value="8.5"></div>
           <div><label>商品サイズ</label><select id="sizeClass"><option value="">すべて</option></select></div>
           <div><label>商品カウント単位</label><select id="productUnit"><option value="parent">親ASIN単位</option><option value="asin">ASIN単位</option></select></div>
-          <div><label>ソート</label><select id="sortBy"><option value="score">総合スコア</option><option value="sales">販売数</option><option value="revenue">売上</option><option value="ratingAsc">評価が低い順</option><option value="sellersAsc">セラー数が少ない順</option><option value="gross">粗利益率</option></select></div>
+          <div><label>ソート</label><select id="sortBy"><option value="score">総合スコア</option><option value="sales">販売数</option><option value="revenue">売上</option><option value="priceDesc">単価 高い順</option><option value="priceAsc">単価 低い順</option><option value="ratingAsc">評価が低い順</option><option value="sellersAsc">セラー数が少ない順</option><option value="gross">粗利益率</option></select></div>
           <div><label>表示件数</label><input id="limit" type="number" value="100"></div>
         </div>
         <div style="margin-top:10px; display:flex; gap:8px;">
@@ -435,6 +435,13 @@
       return { data: buildDatasetsFromNormalized(asin), sourceRows: Math.max(0, matrix.length - 1) };
     }
     function decodeCsvBuffer(buffer) {
+      const head = new Uint8Array(buffer.slice(0, 4));
+      const isZipBasedOfficeFile = head[0] === 0x50 && head[1] === 0x4b;
+      if (isZipBasedOfficeFile) {
+        return {
+          error: "このファイルはCSVではなくExcel形式（.xlsx）の中身です。Excelで開いて「CSV UTF-8」または「CSV（コンマ区切り）」として保存し直してから取り込んでください。"
+        };
+      }
       const decoders = [
         { label:'UTF-8', decoder:new TextDecoder('utf-8') },
         { label:'Shift-JIS', decoder:new TextDecoder('shift_jis') }
@@ -496,6 +503,10 @@
       try {
         const buffer = await file.arrayBuffer();
         const decoded = decodeCsvBuffer(buffer);
+        if (decoded.error) {
+          setStatus(decoded.error, true);
+          return;
+        }
         const result = buildDatasetsFromMatrix(decoded.matrix);
         if (result.error) {
           const headers = decoded.headers.slice(0, 12).join(', ');
@@ -635,6 +646,8 @@
       const desc = k => copy.sort((a,b)=>(b[k]||0)-(a[k]||0));
       if (sortBy === 'sales') return desc('sales');
       if (sortBy === 'revenue') return desc('revenue');
+      if (sortBy === 'priceDesc') return desc('price');
+      if (sortBy === 'priceAsc') return copy.sort((a,b)=>(a.price||0)-(b.price||0));
       if (sortBy === 'ratingAsc') return copy.sort((a,b)=>(a.rating||0)-(b.rating||0));
       if (sortBy === 'sellersAsc') return copy.sort((a,b)=>(a.sellers||0)-(b.sellers||0));
       if (sortBy === 'gross') return desc('gross');
