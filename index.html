@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Seller Sprite 商品選定ダッシュボード</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --ink:#172033; --muted:#64748b; --line:#d7dee8; --bg:#eef2f6;
@@ -73,7 +72,7 @@
 <body>
   <header>
     <h1>Seller Sprite 商品選定ダッシュボード</h1>
-    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保管・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
+    <p class="lead">CSVを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保管・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
     <div class="nav">
       <button id="showDashboard" class="active">ダッシュボード</button>
       <button id="showScoring">採点設定</button>
@@ -86,12 +85,12 @@
     <section class="panel import-panel" id="importPanel">
       <div class="section-title">
         <h2>データ取り込み</h2>
-        <span class="small">対象：Seller SpriteのExcel、例：master_merged.xlsx</span>
+        <span class="small">対象：Seller SpriteのCSV、例：master_merged_import.csv</span>
       </div>
       <div class="filters">
         <div style="grid-column:span 3;">
-          <label>Excelファイル</label>
-          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+          <label>CSVファイル</label>
+          <input type="file" id="fileInput" accept=".csv,text/csv">
         </div>
         <div>
           <label>操作</label>
@@ -99,7 +98,7 @@
         </div>
         <div style="grid-column:span 2;">
           <label>読込状況</label>
-          <div id="importStatus" class="notice">未取り込みです。Excelを選択してください。</div>
+          <div id="importStatus" class="notice">未取り込みです。CSVを選択してください。</div>
         </div>
       </div>
     </section>
@@ -387,8 +386,33 @@
       const asin = rows.map(normalizeRow).filter(r => r.asin);
       return buildDatasetsFromNormalized(asin);
     }
-    function buildDatasetsFromSheet(ws) {
-      const matrix = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:true, blankrows:false });
+    function parseCsv(text) {
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+      const rows = [];
+      let row = [];
+      let field = '';
+      let quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (quoted) {
+          if (c === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++; }
+            else quoted = false;
+          } else {
+            field += c;
+          }
+        } else {
+          if (c === '"') quoted = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else if (c !== '\r') field += c;
+        }
+      }
+      row.push(field);
+      if (row.length > 1 || row[0] !== '') rows.push(row);
+      return rows;
+    }
+    function buildDatasetsFromMatrix(matrix) {
       const headers = (matrix[0] || []).map(h => String(h).trim());
       const col = new Map(headers.map((h, i) => [h, i]));
       const missing = requiredColumns.filter(c => !col.has(c));
@@ -448,23 +472,14 @@
     }
     async function importFile() {
       const file = $('fileInput').files[0];
-      if (!file) { setStatus('Excelファイルを選択してください。', true); return; }
-      if (!window.XLSX) { setStatus('Excel読込ライブラリを取得できません。インターネット接続またはCDN許可を確認してください。', true); return; }
-      setStatus('読み込み中です。ファイルサイズにより数秒から十数秒かかります。');
+      if (!file) { setStatus('CSVファイルを選択してください。', true); return; }
+      if (!file.name.toLowerCase().endsWith('.csv')) { setStatus('CSVファイルを選択してください。ExcelはCSVに変換してから取り込んでください。', true); return; }
+      setStatus('CSVを読み込み中です。ファイルサイズにより数秒かかります。');
       await new Promise(r => setTimeout(r, 30));
       try {
-        const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, {
-          type:'array',
-          cellStyles:false,
-          cellNF:false,
-          cellHTML:false,
-          cellFormula:false,
-          cellDates:false,
-          bookVBA:false
-        });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const result = buildDatasetsFromSheet(ws);
+        const text = await file.text();
+        const matrix = parseCsv(text);
+        const result = buildDatasetsFromMatrix(matrix);
         if (result.error) {
           setStatus(result.error, true);
           return;
@@ -475,7 +490,7 @@
         applyFilters();
       } catch (e) {
         console.error(e);
-        setStatus('読み込みに失敗しました。Excel形式または列名を確認してください。', true);
+        setStatus('読み込みに失敗しました。CSV形式または列名を確認してください。', true);
       }
     }
     function fillSelect(id, values) {
