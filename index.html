@@ -434,6 +434,23 @@
       }
       return { data: buildDatasetsFromNormalized(asin), sourceRows: Math.max(0, matrix.length - 1) };
     }
+    function decodeCsvBuffer(buffer) {
+      const decoders = [
+        { label:'UTF-8', decoder:new TextDecoder('utf-8') },
+        { label:'Shift-JIS', decoder:new TextDecoder('shift_jis') }
+      ];
+      let best = null;
+      for (const item of decoders) {
+        const text = item.decoder.decode(buffer);
+        const matrix = parseCsv(text);
+        const headers = (matrix[0] || []).map(h => String(h).trim());
+        const hit = requiredColumns.filter(c => headers.includes(c)).length;
+        const mojibake = headers.join('').includes('�') ? 1 : 0;
+        const score = hit * 10 - mojibake;
+        if (!best || score > best.score) best = { ...item, text, matrix, headers, hit, score };
+      }
+      return best;
+    }
     function buildDatasetsFromNormalized(asin) {
       const groups = new Map();
       for (const r of asin) {
@@ -477,16 +494,17 @@
       setStatus('CSVを読み込み中です。ファイルサイズにより数秒かかります。');
       await new Promise(r => setTimeout(r, 30));
       try {
-        const text = await file.text();
-        const matrix = parseCsv(text);
-        const result = buildDatasetsFromMatrix(matrix);
+        const buffer = await file.arrayBuffer();
+        const decoded = decodeCsvBuffer(buffer);
+        const result = buildDatasetsFromMatrix(decoded.matrix);
         if (result.error) {
-          setStatus(result.error, true);
+          const headers = decoded.headers.slice(0, 12).join(', ');
+          setStatus(result.error + `（読込文字コード: ${decoded.label} / 読み取れた先頭列: ${headers}）`, true);
           return;
         }
         DATASETS = result.data;
         setDataset();
-        setStatus(`読込完了：元データ ${fmt.format(result.sourceRows)}行 / 親ASIN ${fmt.format(DATASETS.parent.length)}件 / ASIN ${fmt.format(DATASETS.asin.length)}件`);
+        setStatus(`読込完了：元データ ${fmt.format(result.sourceRows)}行 / 親ASIN ${fmt.format(DATASETS.parent.length)}件 / ASIN ${fmt.format(DATASETS.asin.length)}件 / 文字コード ${decoded.label}`);
         applyFilters();
       } catch (e) {
         console.error(e);
