@@ -73,11 +73,11 @@
 <body>
   <header>
     <h1>Seller Sprite 商品選定ダッシュボード</h1>
-    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保存・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
+    <p class="lead">Excelを取り込むと、親ASIN単位/ASIN単位で集計し、条件変更・採点・商品保管・CSV出力ができます。商品データはブラウザ内で処理され、サーバーには送信されません。</p>
     <div class="nav">
       <button id="showDashboard" class="active">ダッシュボード</button>
       <button id="showScoring">採点設定</button>
-      <button id="showSaved">商品保存</button>
+      <button id="showSaved">商品保管</button>
       <button id="showGuide">条件説明</button>
     </div>
   </header>
@@ -148,7 +148,7 @@
       </section>
 
       <section class="panel">
-        <div class="section-title"><h2>商品明細：<span id="detailLabel">上位商品</span></h2><span class="small">気になる商品を選択して商品保存へ保存</span></div>
+        <div class="section-title"><h2>商品明細：<span id="detailLabel">上位商品</span></h2><span class="small">気になる商品を選択して商品保管へ保存</span></div>
         <div style="display:flex; gap:8px; margin-bottom:10px;">
           <button id="selectAllVisible" class="secondary">全選択</button>
           <button id="clearVisible" class="secondary">選択解除</button>
@@ -211,7 +211,7 @@
 
     <section id="savedPage" class="hidden">
       <section class="panel">
-        <div class="section-title"><h2>商品保存ページ</h2><span class="small">保存商品はこのブラウザのlocalStorageに保存されます。別PCには自動共有されません。</span></div>
+        <div class="section-title"><h2>商品保管ページ</h2><span class="small">保存商品はこのブラウザのlocalStorageに保存されます。別PCには自動共有されません。</span></div>
         <div class="kpis" style="margin-bottom:12px;">
           <div class="kpi"><b id="savedCount">0</b><span>保存商品数</span></div>
           <div class="kpi"><b id="savedSales">0</b><span>販売数合計</span></div>
@@ -338,47 +338,79 @@
       return parent || '未分類';
     }
     function normalizeRow(row) {
-      const title = compact(row['タイトル'], 220);
-      const category = compact(row['カテゴリー'], 260);
-      const overview = compact(row['製品概要'], 260);
-      const parentCat = cleanParentCategory(row);
-      const sales = Math.round(toNum(row['月間販売数']));
-      const revenue = Math.round(toNum(row['月間販売額(円)']));
-      const rating = Math.round(toNum(row['評価値']) * 100) / 100;
-      const reviews = Math.round(toNum(row['評価数']));
-      const sellers = Math.round(toNum(row['セラー数']) * 10) / 10;
-      const lqs = Math.round(toNum(row['LQS']) * 10) / 10;
-      const price = Math.round(toNum(row['価格(円)']));
-      const grossRaw = toNum(row['粗利益']);
+      const get = name => row[name] ?? '';
+      return normalizeValues(get);
+    }
+    function normalizeValues(get) {
+      const title = compact(get('タイトル'), 220);
+      const category = compact(get('カテゴリー'), 260);
+      const overview = compact(get('製品概要'), 260);
+      const parentCat = cleanParentCategory({
+        'カテゴリー': get('カテゴリー'),
+        '親カテゴリー': get('親カテゴリー')
+      });
+      const sales = Math.round(toNum(get('月間販売数')));
+      const revenue = Math.round(toNum(get('月間販売額(円)')));
+      const rating = Math.round(toNum(get('評価値')) * 100) / 100;
+      const reviews = Math.round(toNum(get('評価数')));
+      const sellers = Math.round(toNum(get('セラー数')) * 10) / 10;
+      const lqs = Math.round(toNum(get('LQS')) * 10) / 10;
+      const price = Math.round(toNum(get('価格(円)')));
+      const grossRaw = toNum(get('粗利益'));
       const gross = grossRaw > 1 ? grossRaw / 100 : grossRaw;
       return {
-        key: String(row['ASIN'] ?? ''),
-        asin: String(row['ASIN'] ?? ''),
-        parentAsin: String(row['親ASIN'] ?? ''),
+        key: String(get('ASIN') ?? ''),
+        asin: String(get('ASIN') ?? ''),
+        parentAsin: String(get('親ASIN') ?? ''),
         title, category, overview,
-        url: String(row['URL'] ?? row['タイトルリンク'] ?? ''),
-        image: String(row['メイン画像'] ?? ''),
+        url: String(get('URL') || get('タイトルリンク') || ''),
+        image: String(get('メイン画像') ?? ''),
         parentCat,
-        childCat: String(row['子カテゴリー'] ?? ''),
-        searchCat: String(row['検索カテゴリ'] ?? ''),
-        salesBand: String(row['販売帯'] ?? ''),
-        brand: compact(row['ブランド'], 80),
+        childCat: String(get('子カテゴリー') ?? ''),
+        searchCat: String(get('検索カテゴリ') ?? ''),
+        salesBand: String(get('販売帯') ?? ''),
+        brand: compact(get('ブランド'), 80),
         sales, revenue, price, rating, reviews,
-        reviewGrowth: Math.round(toNum(row['月間評価値増加数'])),
+        reviewGrowth: Math.round(toNum(get('月間評価値増加数'))),
         sellers, lqs, gross,
-        sellingDays: Math.round(toNum(row['販売時間'])),
-        sizeClass: String(row['商品サイズ区分'] ?? ''),
-        shipMethod: String(row['配送方法'] ?? ''),
-        sellerLocation: String(row['セラー所在地'] ?? ''),
-        bestSeller: String(row['Best Sellerマーク'] ?? ''),
-        amazonChoice: String(row["Amazon's Choice"] ?? ''),
-        variations: Math.round(toNum(row['バリエーション数'])),
-        appearance: Math.round(toNum(row['出現ファイル数'])) || 1,
-        raw: row
+        sellingDays: Math.round(toNum(get('販売時間'))),
+        sizeClass: String(get('商品サイズ区分') ?? ''),
+        shipMethod: String(get('配送方法') ?? ''),
+        sellerLocation: String(get('セラー所在地') ?? ''),
+        bestSeller: String(get('Best Sellerマーク') ?? ''),
+        amazonChoice: String(get("Amazon's Choice") ?? ''),
+        variations: Math.round(toNum(get('バリエーション数'))),
+        appearance: Math.round(toNum(get('出現ファイル数'))) || 1
       };
     }
     function buildDatasets(rows) {
       const asin = rows.map(normalizeRow).filter(r => r.asin);
+      return buildDatasetsFromNormalized(asin);
+    }
+    function buildDatasetsFromSheet(ws) {
+      const matrix = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:true, blankrows:false });
+      const headers = (matrix[0] || []).map(h => String(h).trim());
+      const col = new Map(headers.map((h, i) => [h, i]));
+      const missing = requiredColumns.filter(c => !col.has(c));
+      if (missing.length) return { error:'必要列が不足しています: ' + missing.join(', ') };
+      const optional = [
+        '製品概要','ブランド','タイトルリンク','URL','メイン画像','親ASIN','親カテゴリー','子カテゴリー','検索カテゴリ','販売帯',
+        '月間評価値増加数','販売時間','商品サイズ区分','配送方法','セラー所在地','Best Sellerマーク',"Amazon's Choice",
+        'バリエーション数','出現ファイル数','粗利益'
+      ];
+      const names = [...new Set(requiredColumns.concat(optional))];
+      const asin = [];
+      for (let i = 1; i < matrix.length; i++) {
+        const arr = matrix[i];
+        const item = normalizeValues(name => {
+          const idx = col.get(name);
+          return idx === undefined ? '' : arr[idx];
+        });
+        if (item.asin) asin.push(item);
+      }
+      return { data: buildDatasetsFromNormalized(asin), sourceRows: Math.max(0, matrix.length - 1) };
+    }
+    function buildDatasetsFromNormalized(asin) {
       const groups = new Map();
       for (const r of asin) {
         const key = r.parentAsin && r.parentAsin.trim() ? r.parentAsin : r.asin;
@@ -422,18 +454,24 @@
       await new Promise(r => setTimeout(r, 30));
       try {
         const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, { type:'array' });
+        const wb = XLSX.read(buffer, {
+          type:'array',
+          cellStyles:false,
+          cellNF:false,
+          cellHTML:false,
+          cellFormula:false,
+          cellDates:false,
+          bookVBA:false
+        });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
-        const cols = rows.length ? Object.keys(rows[0]) : [];
-        const missing = requiredColumns.filter(c => !cols.includes(c));
-        if (missing.length) {
-          setStatus('必要列が不足しています: ' + missing.join(', '), true);
+        const result = buildDatasetsFromSheet(ws);
+        if (result.error) {
+          setStatus(result.error, true);
           return;
         }
-        DATASETS = buildDatasets(rows);
+        DATASETS = result.data;
         setDataset();
-        setStatus(`読込完了：元データ ${fmt.format(rows.length)}行 / 親ASIN ${fmt.format(DATASETS.parent.length)}件 / ASIN ${fmt.format(DATASETS.asin.length)}件`);
+        setStatus(`読込完了：元データ ${fmt.format(result.sourceRows)}行 / 親ASIN ${fmt.format(DATASETS.parent.length)}件 / ASIN ${fmt.format(DATASETS.asin.length)}件`);
         applyFilters();
       } catch (e) {
         console.error(e);
